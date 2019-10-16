@@ -1,0 +1,70 @@
+hosts: all
+  remote_user: root
+  gather_facts: false
+  vars:
+    create_user: devi
+    copy_local_key: "{{ lookup('file', lookup('env','HOME') + '/.ssh/id_rsa.pub') }}"
+    sys_packages: [ 'curl', 'vim', 'git', 'ufw' ]
+  environment:
+    PATH: "{{ ansible_env.PATH }}:/thingy/bin"
+
+  tasks:
+    - name: Make sure we have a 'users' group
+      group:
+        name: users
+        state: present
+
+    - name: Allow 'users' group to have passwordless sudo
+      lineinfile:
+        path: /etc/sudoers
+        state: present
+        regexp: '^%users'
+        line: '%users ALL=(ALL) NOPASSWD: ALL'
+       
+
+    - name: Create a new regular user with sudo privileges
+      user:
+        name: "{{ create_user }}"
+        state: present
+        groups: users
+        append: true
+        create_home: true
+        shell: /bin/bash
+
+    - name: Add sudoers user to wheel group
+      user: name=create_user groups=users append=yes state=present createhome=yes
+
+    - name: Set authorized key for remote user
+      authorized_key:
+        user: "{{ create_user }}"
+        state: present
+        key: "{{ copy_local_key }}"
+
+    - name: Disallow root SSH access
+  lineinfile: dest=/etc/ssh/sshd_config
+              regexp="^PermitRootLogin"
+              line="PermitRootLogin no"
+              state=present
+  notify: Restart ssh
+
+- name: example using security group rule descriptions
+  ec2_group:
+    key_name: "{{ keypair}}"
+    description: sg with rule descriptions
+    vpc_id: vpc-123456
+    profile: "{{ aws_profile }}"
+    region: us-east-1
+    assign_public_ip: yes
+    rules:
+      - proto: tcp
+        from_port: 22
+        to_port: 22
+        cidr_ipv: - 172.16.1.0/24
+
+
+
+
+
+    
+
+ 
